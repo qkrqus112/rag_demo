@@ -3,7 +3,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, FewS
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_chroma import Chroma
+from langchain.vectorstores import FAISS
 
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
@@ -36,34 +36,22 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
 
 def get_retriever():
     """
-    OpenAI 임베딩과 ChromaDB를 사용하여 리트리버를 생성합니다.
-    ChromaDB는 로컬 디렉토리 'chroma'에 저장됩니다.
+    OpenAI 임베딩과 FAISS를 사용하여 리트리버를 생성합니다.
+    FAISS는 로컬 디렉토리 'faiss_index'에 저장됩니다.
     """
-    # OpenAIEmbeddings에 API 키 명시적으로 전달
     embedding = OpenAIEmbeddings(model='text-embedding-3-large', openai_api_key=OPENAI_API_KEY)
-    
-    # ChromaDB 데이터를 저장할 디렉토리 (실습 노트북과 동일하게 'chroma'로 설정)
-    collection_name = "chroma"
-    persist_directory = './chroma' 
-    
+    persist_directory = './faiss_index'
     try:
-        # 기존 ChromaDB를 로드합니다.
-        database = Chroma(collection_name=collection_name, persist_directory=persist_directory, embedding_function=embedding)
-        
-        # 컬렉션에 문서가 있는지 확인하여 경고를 출력합니다.
-        # .count()는 컬렉션 내 문서의 수를 반환합니다.
-        if database._collection.count() == 0:
-            print(f"경고: ChromaDB '{persist_directory}'에 문서가 없습니다. RAG가 제대로 동작하지 않을 수 있습니다. 모듈 1, 2를 먼저 실행하여 데이터를 추가해주세요.")
-            # 실제 애플리케이션에서는 여기서 오류를 발생시키거나, 사용자에게 데이터 로딩을 안내해야 합니다.
-            # raise ValueError(f"ChromaDB '{persist_directory}' is empty. Please run data ingestion first.")
-            
+        # 기존 FAISS 인덱스를 로드합니다.
+        database = FAISS.load_local(folder_path=persist_directory, embeddings=embedding)
+        # 벡터 개수 확인
+        if len(database.index_to_docstore_id) == 0:
+            print(f"경고: FAISS '{persist_directory}'에 문서가 없습니다. RAG가 제대로 동작하지 않을 수 있습니다. 모듈 1, 2를 먼저 실행하여 데이터를 추가해주세요.")
     except Exception as e:
-        # ChromaDB 로드 중 심각한 오류(예: 디렉토리 없음, 권한 문제) 발생 시
-        print(f"ChromaDB 로드 중 오류 발생: {e}. 데이터베이스 파일이 손상되었거나 경로가 잘못되었을 수 있습니다.")
+        print(f"FAISS 로드 중 오류 발생: {e}. 데이터베이스 파일이 손상되었거나 경로가 잘못되었을 수 있습니다.")
         print(f"경고: '{persist_directory}' 경로를 확인하거나, 모듈 1, 2를 다시 실행하여 데이터베이스를 생성해주세요.")
-        raise e # 오류를 다시 발생시켜 애플리케이션이 비정상적으로 동작하는 것을 방지합니다.
+        raise e
 
-    # 검색 시 반환할 문서 개수 설정 (k=4)
     retriever = database.as_retriever(search_kwargs={'k': 4})
     return retriever
 
