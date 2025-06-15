@@ -37,24 +37,23 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
 def get_retriever():
     """
     OpenAI 임베딩과 FAISS를 사용하여 리트리버를 생성합니다.
-    FAISS는 로컬 디렉토리 'faiss_index'에 저장됩니다.
+    FAISS는 로컬 디렉토리 'faiss_akis'에 저장됩니다.
     """
     embedding = OpenAIEmbeddings(model='text-embedding-3-large', openai_api_key=OPENAI_API_KEY)
-    persist_directory = './faiss_index'
+    persist_directory = './faiss_akis'
     try:
-        # 기존 FAISS 인덱스를 로드합니다.
-        database = FAISS.load_local(folder_path=persist_directory, embeddings=embedding)
-        # 벡터 개수 확인
+        database = FAISS.load_local(
+            folder_path=persist_directory,
+            embeddings=embedding,
+            allow_dangerous_deserialization=True  # ✅ 추가!
+        )
         if len(database.index_to_docstore_id) == 0:
-            print(f"경고: FAISS '{persist_directory}'에 문서가 없습니다. RAG가 제대로 동작하지 않을 수 있습니다. 모듈 1, 2를 먼저 실행하여 데이터를 추가해주세요.")
+            print(f"경고: FAISS '{persist_directory}'에 문서가 없습니다.")
     except Exception as e:
-        print(f"FAISS 로드 중 오류 발생: {e}. 데이터베이스 파일이 손상되었거나 경로가 잘못되었을 수 있습니다.")
-        print(f"경고: '{persist_directory}' 경로를 확인하거나, 모듈 1, 2를 다시 실행하여 데이터베이스를 생성해주세요.")
+        print(f"FAISS 로드 중 오류 발생: {e}")
         raise e
 
-    retriever = database.as_retriever(search_kwargs={'k': 4})
-    return retriever
-
+    return database.as_retriever(search_kwargs={'k': 4})
 
 def get_history_retriever():
     """
